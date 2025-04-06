@@ -9,13 +9,13 @@ import matplotlib.pyplot as plt
 import os
 from PIL import Image
 import numpy as np
-
+import cv2
 
 
 # ------------ HYPERPARAMETERS ------------
 data_dir = 'data/HaGRIDv2_dataset_512'
 model_type = 'efficientnet_b0'
-num_epochs = 20
+num_epochs = 10
 val_split = 0.2
 learning_rate = 0.001
 batch_size = 32
@@ -23,6 +23,8 @@ num_workers = 4
 output_dir = 'output'
 pretrained = True
 
+USE_EDGE_DETECTION = True  # Set to False to disable edge detection
+EDGE_SIGMA = 1.0  # Gaussian blur sigma for Sobel edge detection
 
 def get_transforms():
     # Data augmentation and normalization for training
@@ -45,9 +47,38 @@ def get_transforms():
     
     return train_transform, val_transform
 
+def apply_edge_detection(img, sigma=1.0):
+    """Apply edge detection to an image."""
+    # Convert PIL image to numpy array
+    img_np = np.array(img)
+    
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(img_np, (5, 5), sigma)
+    
+    # Convert to grayscale if it's a color image
+    if len(blurred.shape) == 3:
+        gray = cv2.cvtColor(blurred, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = blurred
+    
+    # Compute Sobel gradients
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+    
+    # Compute gradient magnitude: (dx^2 + dy^2)^1/2
+    magnitude = np.sqrt(sobelx**2 + sobely**2)
+    
+    # Normalize to 0-255
+    magnitude = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    
+    # Convert back to RGB for consistency
+    edge_img = cv2.cvtColor(magnitude, cv2.COLOR_GRAY2RGB)
+
+    return Image.fromarray(edge_img)
+
 class CustomDataset(Dataset):
     """Custom dataset that applies transform to the data from ImageFolder"""
-    def __init__(self, dataset, indices, transform=None):
+    def __init__(self, dataset, indices, transform=None, apply_edge=False, sigma=1.0):
         self.dataset = dataset
         self.indices = indices
         self.transform = transform
@@ -55,6 +86,8 @@ class CustomDataset(Dataset):
         self.class_to_idx = dataset.class_to_idx
         self.samples = [dataset.samples[i] for i in indices]
         self.targets = [dataset.targets[i] for i in indices]
+        self.apply_edge = apply_edge
+        self.sigma = sigma
         
     def __len__(self):
         return len(self.indices)
@@ -62,6 +95,10 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         path, target = self.samples[idx]
         image = Image.open(path).convert('RGB')
+        
+        # Apply edge detection if enabled
+        if self.apply_edge:
+            image = apply_edge_detection(image, sigma=self.sigma)
         
         if self.transform:
             image = self.transform(image)
@@ -87,9 +124,21 @@ def load_datasets(data_path, val_split, batch_size, num_workers):
     val_indices = indices[train_size:]
     
     # Create custom datasets with transforms
-    train_dataset = CustomDataset(full_dataset, train_indices, transform=train_transform)
-    val_dataset = CustomDataset(full_dataset, val_indices, transform=val_transform)
+    train_dataset = CustomDataset(
+        full_dataset, 
+        train_indices, 
+        transform=train_transform,
+        apply_edge=USE_EDGE_DETECTION,
+        sigma=EDGE_SIGMA
+    )
     
+    val_dataset = CustomDataset(
+        full_dataset, 
+        val_indices, 
+        transform=val_transform,
+        apply_edge=USE_EDGE_DETECTION,
+        sigma=EDGE_SIGMA
+    )
     # Create data loaders
     train_loader = DataLoader(
         train_dataset, 
@@ -220,11 +269,50 @@ def plot_training_history(train_losses, val_losses, train_accs, val_accs, output
     plt.savefig(os.path.join(output_dir, 'training_history.png'))
     plt.close()
 
+def save_edge_detection_samples(data_path, output_dir, num_samples=5):
+    if not USE_EDGE_DETECTION:
+        return
+        
+    full_dataset = datasets.ImageFolder(data_path)
+    sample_indices = np.random.choice(len(full_dataset), num_samples, replace=False)
+    
+    # Create directory for samples
+    sample_dir = os.path.join(output_dir, 'edge_detection_samples')
+    os.makedirs(sample_dir, exist_ok=True)
+    
+    plt.figure(figsize=(15, 5 * num_samples))
+    
+    for i, idx in enumerate(sample_indices):
+        # Get the image
+        path, _ = full_dataset.samples[idx]
+        img = Image.open(path).convert('RGB')
+        
+        # Apply edge detection
+        edge_img = apply_edge_detection(img, sigma=EDGE_SIGMA)
+        
+        # Visualize the original and edge-detected images
+        plt.subplot(num_samples, 2, i*2 + 1)
+        plt.imshow(img)
+        plt.title(f"Original Image {i+1}")
+        plt.axis('off')
+        
+        plt.subplot(num_samples, 2, i*2 + 2)
+        plt.imshow(edge_img)
+        plt.title(f"Edge Detection")
+        plt.axis('off')
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(sample_dir, 'edge_detection_samples.png'))
+    plt.close()
+    print(f"Edge detection samples saved to {sample_dir}")
+
 def main():
     
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
+    save_edge_detection_samples(data_dir, output_dir)
+
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
