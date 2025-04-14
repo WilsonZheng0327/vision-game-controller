@@ -19,7 +19,7 @@ edge_sigma = 1.0
 key_mapping_path = "key_mappings.json"
 camera_id = 0
 interval = 0.1
-confidence_threshold = 0.5
+confidence_threshold = 0.95
 gesture_hold_frames = 3
 output_file = "output/camera_output.txt"
 debug = True
@@ -52,7 +52,9 @@ class GestureController:
         # State tracking
         self.current_gesture = None
         self.current_gesture_count = 0
+        self.last_triggered_gesture = None  # Track the last gesture that triggered a key
         self.active_keys = set()
+        self.gesture_active = False  # Flag to track if a gesture is currently active
         self.last_prediction_time = 0
         self.running = True
         
@@ -102,7 +104,14 @@ class GestureController:
         
         # Check confidence threshold
         if confidence < self.confidence_threshold:
-            # Reset counters if confidence is too low
+            # No gesture detected - reset the active state
+            if self.current_gesture is not None:
+                # We were showing a gesture, but now we've stopped
+                if self.debug:
+                    print(f"Gesture ended: {self.current_gesture}")
+                self.gesture_active = False
+            
+            # Reset counters
             self.current_gesture = None
             self.current_gesture_count = 0
             return None
@@ -114,10 +123,18 @@ class GestureController:
             # New gesture detected
             self.current_gesture = gesture_name
             self.current_gesture_count = 1
+            self.gesture_active = False  # Reset active flag for new gesture
         
         # Check if we've seen this gesture enough times consecutively
         if self.current_gesture_count >= self.gesture_hold_frames:
-            return self.current_gesture
+            # If the gesture is not yet marked as active, trigger it
+            if not self.gesture_active:
+                self.gesture_active = True
+                self.last_triggered_gesture = self.current_gesture
+                return self.current_gesture
+            
+            # Otherwise, gesture is already active, don't trigger again
+            return None
         else:
             return None
     
@@ -144,8 +161,8 @@ class GestureController:
         """Thread that manages keyboard presses and releases - simplified version without modifiers"""
         while self.running:
             # Process active keys - one at a time, no modifiers
-            if self.active_keys:
-                key = next(iter(self.active_keys))  # Get the single active key
+            keys_to_process = self.active_keys.copy()  # Make a copy to avoid race conditions
+            for key in keys_to_process:
                 try:
                     # Simple press and release without holding
                     keyboard.press_and_release(key)
@@ -154,7 +171,7 @@ class GestureController:
                 except Exception as e:
                     if self.debug:
                         print(f"Error pressing key {key}: {e}")
-                self.active_keys.clear()  # Clear after each press
+                self.active_keys.remove(key)  # Remove after processing
             
             # Sleep to prevent CPU hogging
             time.sleep(0.1)
@@ -165,6 +182,9 @@ class GestureController:
         self.release_all_keys()
         if self.controller_thread.is_alive():
             self.controller_thread.join(timeout=1.0)
+
+
+
 
 def main():
 
@@ -204,7 +224,7 @@ def main():
     print(f"Using device: {device}")
     
     # Get image transform
-    train_transform, val_transform = get_transforms()
+    _, val_transform = get_transforms()
 
     cap = cv2.VideoCapture(camera_id)
     if not cap.isOpened():
@@ -231,7 +251,7 @@ def main():
                     break
                 
                 # Display the frame
-                cv2.imshow('Camera Feed', frame)
+                # cv2.imshow('Camera Feed', frame)
                 
                 current_time = time.time()
                 time_since_last_capture = current_time - last_capture_time
@@ -248,7 +268,7 @@ def main():
 
                     # Display results
                     prediction_text = f"Prediction: {prediction['class_name']} ({prediction['confidence']*100:.1f}%)"
-                    status_text = f"Active: {'None' if not gesture else gesture}"
+                    status_text = f"Active: {'None' if not controller.current_gesture else controller.current_gesture}"
                     keys_text = f"Keys: {', '.join(controller.active_keys) if controller.active_keys else 'None'}"
                     
                     cv2.putText(
