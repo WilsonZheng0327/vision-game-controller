@@ -11,7 +11,7 @@ from train import *
 # ------------ HYPERPARAMETERS ------------
 data_dir = 'data/HaGRIDv2_dataset_512'
 model_type = 'efficientnet_b0'
-model_path = "output/7747T9804V.pth"
+model_path = "output/eff_7747T9804V.pth"
 
 use_edge_detection = False
 edge_sigma = 1.0
