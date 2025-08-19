@@ -15,7 +15,7 @@ import cv2
 # ------------ HYPERPARAMETERS ------------
 data_dir = 'data/HaGRIDv2_dataset_512'
 # model_type = 'efficientnet_b0'
-model_type = 'resnet50'
+model_type = 'resnet101'
 num_epochs = 10
 val_split = 0.2
 learning_rate = 0.001

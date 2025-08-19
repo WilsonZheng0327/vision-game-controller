@@ -9,7 +9,7 @@ from pathlib import Path
 
 # ======= CONFIGURATION (MODIFY THESE VARIABLES) =======
 # Path to the trained model (.pth file)
-MODEL_PATH = "output/best_model.pth"
+MODEL_PATH = "model/best_model.pth"
 
 # Path to a single image or directory of images
 IMAGE_PATH = "data/HaGRIDv2_dataset_512/dislike/0000f1d1-1b41-4489-bdb4-1e43ec991c81.jpg"  # Can be a single image or a directory

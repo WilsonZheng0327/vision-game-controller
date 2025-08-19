@@ -9,9 +9,9 @@ import threading
 from train import *
 
 # ------------ HYPERPARAMETERS ------------
-data_dir = 'data/HaGRIDv2_dataset_512'
+# data_dir = 'data/HaGRIDv2_dataset_512'
 model_type = 'efficientnet_b0'
-model_path = "output/eff_7747T9804V.pth"
+model_path = "model/efficientnet_b0.pth"
 
 use_edge_detection = False
 edge_sigma = 1.0
@@ -21,7 +21,6 @@ camera_id = 0
 interval = 0.1
 confidence_threshold = 0.95
 gesture_hold_frames = 3
-output_file = "output/camera_output.txt"
 debug = True
 
 def load_key_mappings(path, class_names):
@@ -204,8 +203,11 @@ def main():
             last_weight = list(checkpoint.values())[-2]  # -2 to avoid bias
             num_classes = last_weight.shape[0]
 
-    full_dataset = datasets.ImageFolder(data_dir)
-    class_names = full_dataset.classes
+    # full_dataset = datasets.ImageFolder(data_dir)
+    # class_names = full_dataset.classes
+
+    class_names = ["dislike", "fist", "four", "like", "no_gesture", "ok", "one", "palm", "rock", "three", "three2", "three_gun"]
+
     print(f"Detected {num_classes} classes in the model")
     print([f"Class {i}" for i in class_names])
     
@@ -242,75 +244,74 @@ def main():
     last_capture_time = time.time() - interval
 
     try:
-        with open(output_file, 'w') as file:
-            while True:
-                # Read a frame from the camera
-                ret, frame = cap.read()
-                if not ret:
-                    print("Error: Failed to capture image from camera")
-                    break
+        while True:
+            # Read a frame from the camera
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Failed to capture image from camera")
+                break
+            
+            # Display the frame
+            # cv2.imshow('Camera Feed', frame)
+            
+            current_time = time.time()
+            time_since_last_capture = current_time - last_capture_time
+            
+            if time_since_last_capture >= interval:
+                last_capture_time = current_time
                 
-                # Display the frame
-                # cv2.imshow('Camera Feed', frame)
+                prediction = controller.process_frame(frame)
+                gesture = controller.update_gesture_state(prediction)
                 
-                current_time = time.time()
-                time_since_last_capture = current_time - last_capture_time
-                
-                if time_since_last_capture >= interval:
-                    last_capture_time = current_time
-                    
-                    prediction = controller.process_frame(frame)
-                    gesture = controller.update_gesture_state(prediction)
-                    
-                    if gesture:
-                        controller.trigger_keyboard_action(gesture)
+                if gesture:
+                    controller.trigger_keyboard_action(gesture)
 
 
-                    # Display results
-                    prediction_text = f"Prediction: {prediction['class_name']} ({prediction['confidence']*100:.1f}%)"
-                    status_text = f"Active: {'None' if not controller.current_gesture else controller.current_gesture}"
-                    keys_text = f"Keys: {', '.join(controller.active_keys) if controller.active_keys else 'None'}"
-                    
-                    cv2.putText(
-                        frame, 
-                        prediction_text, 
-                        (10, 30), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 
-                        0.7, 
-                        (0, 255, 0), 
-                        2, 
-                        cv2.LINE_AA
-                    )
-                    
-                    cv2.putText(
-                        frame, 
-                        status_text, 
-                        (10, 60), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 
-                        0.7, 
-                        (255, 165, 0), 
-                        2, 
-                        cv2.LINE_AA
-                    )
-                    
-                    cv2.putText(
-                        frame, 
-                        keys_text, 
-                        (10, 90), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 
-                        0.7, 
-                        (0, 165, 255), 
-                        2, 
-                        cv2.LINE_AA
-                    )
-                    
-                    # Display the frame with prediction
-                    cv2.imshow('Gesture Controller', frame)
+                # Display results
+                prediction_text = f"Prediction: {prediction['class_name']} ({prediction['confidence']*100:.1f}%)"
+                status_text = f"Active: {'None' if not controller.current_gesture else controller.current_gesture}"
+                keys_text = f"Keys: {', '.join(controller.active_keys) if controller.active_keys else 'None'}"
                 
-                # Check for key press
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    break
+                cv2.putText(
+                    frame, 
+                    prediction_text, 
+                    (10, 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.7, 
+                    (0, 255, 0), 
+                    2, 
+                    cv2.LINE_AA
+                )
+                
+                cv2.putText(
+                    frame, 
+                    status_text, 
+                    (10, 60), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.7, 
+                    (255, 165, 0), 
+                    2, 
+                    cv2.LINE_AA
+                )
+                
+                cv2.putText(
+                    frame, 
+                    keys_text, 
+                    (10, 90), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.7, 
+                    (0, 165, 255), 
+                    2, 
+                    cv2.LINE_AA
+                )
+                
+                # Display the frame with prediction
+                cv2.imshow('Gesture Controller', frame)
+            
+            # Check for key press
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
                 
     finally:
         # Stop controller and release keys
