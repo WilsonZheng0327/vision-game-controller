@@ -12,3 +12,4 @@ The current implementation only supports single key presses, which is triggered 
 
 1. Configure `key_mappings.json`
 2. Run `python main.py`
+3. Press 'q' while in the pop-up window to quit
