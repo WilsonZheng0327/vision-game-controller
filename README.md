@@ -1,5 +1,8 @@
 ## Computer Vision-Powered Hand Gesture-Based Keyboard Controller
 
+## Demo
+![Gameplay demo](https://github.com/WilsonZheng0327/vision-game-controller/blob/main/Demo.gif)
+
 This is a basic implementation of using hand gestures to control the computer keyboard (10 FPS).
 
 `output/efficientnet_b0.pth` has the trained parameters of the used model. Specifically, it is the EfficientNet B0 model architecture, trained on a chosen set of 12 hand gestures of the [HaGRIDv2](https://github.com/hukenovs/hagrid/tree/Hagrid_v2-1M) dataset.
