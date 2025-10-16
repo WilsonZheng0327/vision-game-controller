@@ -1,4 +1,4 @@
-## Computer Vision-Powered Hand Gesture-Based Keyboard Controller
+# Computer Vision-Powered Hand Gesture-Based Keyboard Controller
 
 ## Demo
 ![Gameplay demo](https://github.com/WilsonZheng0327/vision-game-controller/blob/main/Demo.gif)
